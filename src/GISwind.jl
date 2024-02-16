@@ -120,19 +120,27 @@ function GISwind(; savetodisk=true, plotmasks=false, optionlist...)
 
     plotmasks == :onlymasks && return nothing
 
-    mask_onshoreA[:,:] .= 1
-    mask_onshoreB[:,:] .= 1
-    mask_offshore[:,:] .= 1
+    #mask_onshoreA[:,:] .= 1
+    #mask_onshoreB[:,:] .= 1
+    #mask_offshore[:,:] .= 1
 
     windatlas, windatlas_class, meanwind, windspeed, meanwind_allyears = read_wind_datasets(options, lonrange, latrange)
 
-    #area_distribution_1(windatlas,res,latrange)
-    nr_buckets = 10
-    area_distribution_2(windatlas,res,latrange,nr_buckets)
+    #Investigating area
+    #regionsmatrisen[svenskaCellernaOnshore]
+    #print(regionlist)
+    #landet = heatmap(rotr90(transpose((regions.==1)[1:end,1:end])))
+    #display(landet)
 
-    #windCF_onshoreA, windCF_onshoreB, windCF_offshore, capacity_onshoreA, capacity_onshoreB, capacity_offshore =
-    #    calc_wind_vars(options, windatlas, windatlas_class, meanwind, windspeed, meanwind_allyears, regions,
-    #            offshoreregions, regionlist, mask_onshoreA, mask_onshoreB, mask_offshore, lonrange, latrange)
+    nr_buckets = 3
+    wind_lowerlimit = 5
+    min_classes, max_classes = windclasses_areabased(windatlas,regions,regionlist,res,latrange,nr_buckets,wind_lowerlimit)
+    options.onshoreclasses_min = min_classes
+    options.onshoreclasses_max = max_classes
+
+    windCF_onshoreA, windCF_onshoreB, windCF_offshore, capacity_onshoreA, capacity_onshoreB, capacity_offshore =
+        calc_wind_vars(options, windatlas, windatlas_class, meanwind, windspeed, meanwind_allyears, regions,
+                offshoreregions, regionlist, mask_onshoreA, mask_onshoreB, mask_offshore, lonrange, latrange)
 
     if savetodisk
         mkpath(in_datafolder("output"))
@@ -151,74 +159,62 @@ function GISwind(; savetodisk=true, plotmasks=false, optionlist...)
     # return windCF_onshoreA, windCF_onshoreB, windCF_offshore, capacity_onshoreA, capacity_onshoreB, capacity_offshore
 end
 
-#Let's try again and get the regions more even in area
-function area_distribution_2(windatlas,res,latrange,nr_buckets)
-    #Calculating the total area - Water and land included
-    #Includes wind speeds higher or equal to 0
-    cells_per_lat = count.(>=(0), eachcol(windatlas))
+
+function windclasses_areabased(windatlas,regions,regionlist,res,latrange,nr_buckets,wind_lowerlimit)
+    #For calculating cell area
     rastercellarea(lat, res) = cosd(lat) * (2*6371*π/(360/res))^2
     lats = (90-res/2:-res:-90+res/2)[latrange] 
-    total_area_with_wind = sum(cells_per_lat .* rastercellarea.(lats,res))
+    
+    #Calculating the total area over land with wind speeds over the lower limit
+    windatlas_regions = zeros(size(windatlas))
+    #Marks all the cells that include land in the selected regions
+    #with a 1 in windatlas_regions
+    for i in 1:length(regionlist)
+        windatlas_reg = windatlas .* (regions .== i)
+        windatlas_regions += windatlas_reg
+    end
+    #Counts the nummber of cells per latitude, since they have the same area
+    cells_per_lat = count.(>(wind_lowerlimit), eachcol(windatlas_regions))
+    #Muliplies the number of cells per latitude with the area of the cells on that latitude
+    total_area = sum(cells_per_lat .* rastercellarea.(lats,res))
+    println("Total area: ", total_area)
 
     #Each wind speed is matched with its corresponding area
     #The wind speed and area are put in tuples in an array which is sorted according to ascending wind speed
     area_each_cell = rastercellarea.(lats,res)' .* ones(size(windatlas))
-    wind_and_area = [(windatlas[i,j],area_each_cell[i,j]) for i in 1:size(windatlas,1), j in 1:size(windatlas,2)]
+    wind_and_area = [(windatlas_regions[i,j],area_each_cell[i,j]) for i in 1:size(windatlas,1), j in 1:size(windatlas,2)]
+    #Sorted as an vector based on wind speed
     wind_and_area_sorted = sort(vec(wind_and_area))
 
-    equal_area_per_bucket = total_area_with_wind/nr_buckets
+    #We want X buckets with the same area and corresponding wind speeds
+    equal_area_per_bucket = total_area/nr_buckets
     area_bucket = zeros(nr_buckets)
     min_classes = zeros(nr_buckets)
     max_classes = zeros(nr_buckets)
     i = 1
     #The average of possible cell areas in the region
     avg_cellarea = sum(rastercellarea.(lats,res))/length(rastercellarea.(lats,res))
+    #Picks out all the wind speeds above the lower limit in order from the smallest
+    #Sums up the corresponding area for each wind speed and adds it to a bucket
+    #When the area has reached an X:th of the total, a new bucket is filled up
+    #At the filling of a new bucket, the wind speed is saved
     for element in wind_and_area_sorted
-        area_bucket[i] += element[2]
-        if (area_bucket[i] >= (equal_area_per_bucket - avg_cellarea/2)) && (i < nr_buckets)
-            max_classes[i] = element[1]
-            i += 1
-            min_classes[i] = max_classes[i-1]
+        if element[1] > wind_lowerlimit
+            area_bucket[i] += element[2]
+            if (area_bucket[i] >= (equal_area_per_bucket - avg_cellarea/2)) && (i < nr_buckets)
+                max_classes[i] = element[1]
+                i += 1
+                min_classes[i] = max_classes[i-1]
+            end
         end
     end
-    min_classes[1] = wind_and_area_sorted[1][1]
+    min_classes[1] = wind_lowerlimit
     max_classes[end] = wind_and_area_sorted[end][1]
-    print("\nArea: ",area_bucket, "\nMin area: ", minimum(area_bucket), 
+    println("\nArea: ",area_bucket, "\nMin area: ", minimum(area_bucket), 
             " \nMax area: ", maximum(area_bucket), "\nMin wind: ",min_classes, "\nMax wind: ", max_classes)
+    return min_classes, max_classes
 end
 
-
-#Each cell is assumed to be of the same size
-#This produces buckets with very uneven areas
-function area_distribution_1(windatlas,res,latrange)
-    windatlas_sorted = sort(vec(windatlas))
-    number_of_area_buckets = 10
-    nr_cells_in_bucket = length(windatlas_sorted)÷number_of_area_buckets
-    min_classes = zeros(number_of_area_buckets)
-    max_classes = zeros(number_of_area_buckets)
-
-    rastercellarea(lat, res) = cosd(lat) * (2*6371*π/(360/res))^2
-    lats = (90-res/2:-res:-90+res/2)[latrange] 
-    area_bucket = zeros(number_of_area_buckets)
-    for i=1:number_of_area_buckets
-        bucket = windatlas_sorted[((i-1)*nr_cells_in_bucket+1):(i*nr_cells_in_bucket)]
-        min_classes[i] = bucket[1]
-        max_classes[i] = bucket[end]
-
-        cells_in_bucket = (min_classes[i] .<= windatlas .<= max_classes[i])
-        #Iterate over each column which corresponds to each latitude-value
-        for j=1:size(cells_in_bucket,2)
-            cells_per_lat = sum(cells_in_bucket[:,j])
-            area_per_cell = rastercellarea(lats[j],res)
-            area_bucket[i] += cells_per_lat * area_per_cell
-        end
-    end
-    options.onshoreclasses_min = min_classes
-    options.onshoreclasses_max = max_classes
-
-    println("km2 in each bucket: ",area_bucket)
-    println("Min: ", minimum(area_bucket), " Max: ", maximum(area_bucket))
-end
 
 function read_datasets(options)
     @unpack res, gisregion, scenarioyear = options
