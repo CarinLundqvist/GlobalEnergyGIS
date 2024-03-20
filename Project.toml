@@ -47,5 +47,5 @@ XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 
 [compat]
 GeoMakie = "=0.2.2"
-Proj4 = "0.7.5"
 Parsers = "=2.2.0"
+Proj4 = "0.7.5"
