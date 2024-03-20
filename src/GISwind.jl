@@ -35,7 +35,12 @@ windoptions() = Dict(
     :classB_threshold => 0.001, # minimum share of pixels within distance_elec_access km that must have grid access
                                 # for a pixel to be considered for wind class B.
 
-    :climate_scenario => ""     # e.g. "HCLIM_EC-EARTH_100m_rcp85_2050", "CORDEX_ictp_EC-EARTH_100m_rcp85_2050"
+    :climate_scenario => "",     # e.g. "HCLIM_EC-EARTH_100m_rcp85_2050", "CORDEX_ictp_EC-EARTH_100m_rcp85_2050"
+
+    :max_altitude => 1e5,                  # (m) the maximum altitude that onshore wind turbines can be placed on
+    :area_based_onshoreclasses => true,     # if area-based wind resource classes should be used. Ignores the wind speed bounds above
+    :number_of_classes => 10,               # the number of area-based classes
+    :min_windspeed => 6                     # (m/s) the minimum wind speed included in the area-based classes, i.e. a lower bound on wind speed
 )
     # Land types
     #     0      'Water'                       
@@ -95,9 +100,13 @@ mutable struct WindOptions
     downsample_masks        ::Int
     classB_threshold        ::Float64
     climate_scenario        ::String
+    max_altitude            ::Float64           # m
+    area_based_onshoreclasses ::Bool
+    number_of_classes       ::Int
+    min_windspeed           ::Float64           # m/s
 end
 
-WindOptions() = WindOptions("","",0,0,0,0,0,0,0,0,[],[],"",0,false,100,100,0,0,[],[],[],[],0,0.0,"")
+WindOptions() = WindOptions("","",0,0,0,0,0,0,0,0,[],[],"",0,false,100,100,0,0,[],[],[],[],0,0.0,"",0.0,false,0,0.0)
 
 function WindOptions(d::Dict{Symbol,Any})
     options = WindOptions()
@@ -109,7 +118,7 @@ end
 
 function GISwind(; savetodisk=true, plotmasks=false, optionlist...)
     options = WindOptions(merge(windoptions(), optionlist))
-    @unpack gisregion, era_year, filenamesuffix, downsample_masks, climate_scenario = options
+    @unpack gisregion, era_year, filenamesuffix, res, downsample_masks, area_based_onshoreclasses, number_of_classes, min_windspeed, climate_scenario = options
 
     regions, offshoreregions, regionlist, gridaccess, popdens, topo, land, protected, lonrange, latrange =
                 read_datasets(options)
@@ -120,11 +129,35 @@ function GISwind(; savetodisk=true, plotmasks=false, optionlist...)
 
     plotmasks == :onlymasks && return nothing
 
+    controlling_onshore_density(options,regions,regionlist,latrange,res,mask_onshoreA,mask_onshoreB)
+
+    # Investigates the effect of an altitude criteria
+    #region = rotr90(transpose((topo .>0)*1)) .+ rotr90(transpose((topo .>1000)*2))
+    # fig = Figure(fontsize = 30)#,resolution=(1400,1000))
+    # ax = Makie.Axis(fig[1,1],title = "$gisregion")
+    # regions_land = (regions .> 0).*1
+    # region = rotr90(transpose((topo .* regions_land)[1:downsample_masks:end,1:downsample_masks:end]))
+    # hm = heatmap!(ax,region)
+    # path = "C:\\Users\\carin\\Documents\\Thesis\\Code\\Plots\\Distance to grid"
+    # Makie.save("$(path)\\$(gisregion)_Topography.png", fig)
+
     windatlas, windatlas_class, meanwind, windspeed, meanwind_allyears = read_wind_datasets(options, lonrange, latrange)
 
+    # If area_based_onshoreclasses, new resource classes will be created according to the methodology
+    #   in Bogdanov and Breyer 2016, as well as Jakobsson et al (unpublished)
+    if area_based_onshoreclasses
+        onshoreclasses_min_area, onshoreclasses_max_area = 
+            windclasses_areabased(windatlas,regions,regionlist,res,latrange,number_of_classes,min_windspeed)
+        options.onshoreclasses_min = onshoreclasses_min_area
+        options.onshoreclasses_max = onshoreclasses_max_area
+    end
+
+    # Compares the exclusion of urban areas to the exclusion of areas with high population densities
+    #landtype_heatmap(gisregion,regions,land,popdens,options.persons_per_km2)
+
     windCF_onshoreA, windCF_onshoreB, windCF_offshore, capacity_onshoreA, capacity_onshoreB, capacity_offshore =
-        calc_wind_vars(options, windatlas, windatlas_class, meanwind, windspeed, meanwind_allyears, regions,
-                offshoreregions, regionlist, mask_onshoreA, mask_onshoreB, mask_offshore, lonrange, latrange)
+      calc_wind_vars(options, windatlas, windatlas_class, meanwind, windspeed, meanwind_allyears, regions,
+              offshoreregions, regionlist, mask_onshoreA, mask_onshoreB, mask_offshore, lonrange, latrange)
 
     if savetodisk
         mkpath(in_datafolder("output"))
@@ -142,6 +175,118 @@ function GISwind(; savetodisk=true, plotmasks=false, optionlist...)
     nothing
     # return windCF_onshoreA, windCF_onshoreB, windCF_offshore, capacity_onshoreA, capacity_onshoreB, capacity_offshore
 end
+
+
+function landtype_heatmap(gisregion,regions,land,popdens,persons_per_km2)
+    fig = Figure(fontsize = 30,resolution=(1400,1000))
+    ax1 = Makie.Axis(fig[1,1],title = "Urban areas")
+    ax2 = Makie.Axis(fig[1,2],title = "Population density > $(persons_per_km2) pers/km2")
+
+    #Urban is defined as “At least 30% impervious surface area including building materials, asphalt, and vehicles.”
+    region = rotr90(transpose(regions .> 0)).*1
+    urban = rotr90(transpose(land .== 13)).*2
+    excluded_population = rotr90(transpose(popdens .> persons_per_km2)).*2
+    urban = urban .+ region
+    excluded_population = excluded_population .+ region
+    hm1 = heatmap!(ax1,urban)
+    hm2 = heatmap!(ax2,excluded_population)
+    #display(fig)
+    path = "C:\\Users\\carin\\Documents\\Thesis\\Code\\Plots\\Urban"
+    #Makie.save("$(path)\\$(regions)_PopDen$(persons_per_km2).png", fig);
+    Makie.save("$(path)\\$(gisregion)_PopDen$(persons_per_km2).png", fig)
+    #Makie.save(filename, ax.scene, resolution=pngsize)
+end
+
+# Gives a warning if the masks remove more than 10 % of the area
+function controlling_onshore_density(options,regions,regionlist,latrange,res,mask_onshoreA,mask_onshoreB)
+    @unpack onshore_density, area_onshore = options
+    #Calculating total region area
+    rastercellarea(lat, res) = cosd(lat) * (2*6371*π/(360/res))^2
+    lats = (90-res/2:-res:-90+res/2)[latrange] 
+    cells_per_lat = zeros(size(latrange))
+    for i in 1:length(regionlist)
+        cells_per_lat += count.(==(i), eachcol(regions))
+    end
+    area_total = sum(cells_per_lat .* rastercellarea.(lats,res))
+
+    #Calculating area without masks
+    cells_onshore = zeros(size(regions))
+    for i in 1:length(regionlist)
+        cells_onshore += (regions .== i)
+    end
+    cells_without_masks = cells_onshore .* (mask_onshoreA .+ mask_onshoreB)
+    area_without_masks = sum(count.(>(0), eachcol(cells_without_masks)) .* rastercellarea.(lats,res))
+    total_capacity = area_without_masks * area_onshore * onshore_density
+    #display(heatmap(rotr90(transpose(cells_without_masks))))
+    #print("Area without masks: ",area_without_masks)
+
+    area_loss = area_without_masks/area_total;
+
+    if area_loss < 0.95
+        @info "The remaining area with the masks applied is $(round(area_loss*100, digits=1)) % of the total area."
+    end
+
+    #Calculating what a capasity density for the whole region would be with the given settings
+    #capacity_density_total_region = total_capacity/area_total
+    #println("\nTotal capacity/Total area for $(regionlist): ", capacity_density_total_region)
+end
+
+function windclasses_areabased(windatlas,regions,regionlist,res,latrange,number_of_classes,min_windspeed)
+    rastercellarea(lat, res) = cosd(lat) * (2*6371*π/(360/res))^2   # Calculates area of each cell
+    lats = (90-res/2:-res:-90+res/2)[latrange]                      # All the latitudes for the given region
+
+    # Only wind speeds on land belonging to the selected regions are non-zero
+    windatlas_regions = zeros(size(windatlas))
+    for i in 1:length(regionlist)
+        windatlas_reg = windatlas .* (regions .== i)
+        windatlas_regions += windatlas_reg
+    end
+
+    # Counts the nummber of cells per latitude with a wind speed over the minimum
+    cells_per_lat = count.(>(min_windspeed), eachcol(windatlas_regions))
+
+    # Muliplies the number of cells per latitude with the area of the cells on that latitude
+    #   and sums them up to get the total land area of the region
+    total_area = sum(cells_per_lat .* rastercellarea.(lats,res))
+
+    # The wind speed and area of each cell are put in a tuple
+    # The tuples are placed in a vector that is sorted according to ascending wind speed
+    area_cells = rastercellarea.(lats,res)' .* ones(size(windatlas))
+    wind_and_area = [(windatlas_regions[i,j],area_cells[i,j]) for i in 1:size(windatlas,1), j in 1:size(windatlas,2)]
+    wind_and_area_sorted = sort(vec(wind_and_area))
+
+    # We want the number of classes specified by nr_of_classes
+    # Each class should have the same area, where the cells who make up that area have associated wind speeds
+    # The lowest and highest wind speed in each class becomes the new resource classes
+    area_per_class = total_area/number_of_classes           # The ideal area of each class if equally divided
+    area_classes = zeros(number_of_classes)                 # The actual area of each class
+    onshoreclasses_min_area = zeros(number_of_classes)      # The lower bounds on annual onshore wind speeds
+    onshoreclasses_max_area = zeros(number_of_classes)      # The upper bounds on annual onshore wind speeds
+    
+    # The for-loop picks out all the wind speeds above the lower limit from the smallest to the biggest
+    # The area for each selected wind speed is put in area_classes until it reaches area_per_class
+    # Then, the upper and lower bound are set for that class and the loop moves onto the next class
+    avg_cellarea = sum(rastercellarea.(lats,res))/length(rastercellarea.(lats,res)) # Used to make the area more even between classes
+    i = 1
+    for wind_area_pair in wind_and_area_sorted
+        if wind_area_pair[1] > min_windspeed
+            area_classes[i] += wind_area_pair[2]
+            if (area_classes[i] >= (area_per_class - avg_cellarea/2)) && (i < number_of_classes)
+                onshoreclasses_max_area[i] = wind_area_pair[1]
+                i += 1
+                onshoreclasses_min_area[i] = onshoreclasses_max_area[i-1]
+            end
+        end
+    end
+    onshoreclasses_min_area[1] = min_windspeed
+    onshoreclasses_max_area[end] = wind_and_area_sorted[end][1]
+    #println("\nArea of each class: ", area_classes)
+    #println("Lower bounds on wind speed: ", onshoreclasses_min_area)
+    #println("Upper bounds on wind speed: ", onshoreclasses_max_area)
+
+    return onshoreclasses_min_area, onshoreclasses_max_area
+end
+
 
 function read_datasets(options)
     @unpack res, gisregion, scenarioyear = options
@@ -204,7 +349,7 @@ end
 
 function create_wind_masks(options, regions, offshoreregions, gridaccess, popdens, topo, land, protected, lonrange, latrange; plotmasks=false, downsample=1)
     @unpack res, gisregion, exclude_landtypes, protected_codes, distance_elec_access, persons_per_km2,
-                min_shore_distance, max_depth, classB_threshold, filenamesuffix = options
+                min_shore_distance, max_depth, classB_threshold, max_altitude, filenamesuffix = options
 
     println("Creating masks...")
 
@@ -219,17 +364,22 @@ function create_wind_masks(options, regions, offshoreregions, gridaccess, popden
 
     # Pixels with electricity access for onshore wind A 
     gridA = (gridaccess .> 0)
+    #hm = heatmap(rotr90(transpose(gridA)))
 
     # Pixels with electricity access for onshore wind B and offshore wind
     km_per_degree = π*2*6371/360
     disk = diskfilterkernel(distance_elec_access/km_per_degree/res)
+    #hm =heatmap(rotr90(transpose(imfilter(gridaccess, disk))))
+    #hm =heatmap(rotr90(transpose(imfilter(gridaccess, disk).> max(1e-9, classB_threshold))))
+    #display(hm)
     gridB = (imfilter(gridaccess, disk) .> max(1e-9, classB_threshold)) # avoid artifacts if classB_threshold == 0
+
 
     # println("MAKE SURE MASKS DON'T OVERLAP! (regions & offshoreregions, mask_*)")
 
     # all mask conditions
-    mask_onshoreA = gridA .& (popdens .< persons_per_km2) .& goodland .& .!protected_area
-    mask_onshoreB = (gridB .& .!gridA) .& (popdens .< persons_per_km2) .& goodland .& .!protected_area
+    mask_onshoreA = gridA .& (popdens .< persons_per_km2) .& goodland .& .!protected_area .& (topo .< max_altitude)
+    mask_onshoreB = (gridB .& .!gridA) .& (popdens .< persons_per_km2) .& goodland .& .!protected_area .& (topo .< max_altitude)
 
     # shoreline mask for offshore wind
     disk = diskfilterkernel(min_shore_distance/km_per_degree/res)
