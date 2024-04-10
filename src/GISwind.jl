@@ -223,7 +223,7 @@ function controlling_onshore_density(options,regions,regionlist,latrange,res,mas
     area_loss = area_without_masks/area_total;
 
     if area_loss < 0.95
-        @info "The remaining area with the masks applied is $(round(area_loss*100, digits=1)) % of the total area."
+        @info "The remaining area for $(regionlist) with the masks applied is $(round(area_loss*100, digits=1)) % of the total area."
     end
 
     #Calculating what a capasity density for the whole region would be with the given settings
@@ -279,7 +279,7 @@ function windclasses_areabased(windatlas,regions,regionlist,res,latrange,number_
         end
     end
     onshoreclasses_min_area[1] = min_windspeed
-    onshoreclasses_max_area[end] = wind_and_area_sorted[end][1]
+    onshoreclasses_max_area[end] = 99
     #println("\nArea of each class: ", area_classes)
     #println("Lower bounds on wind speed: ", onshoreclasses_min_area)
     #println("Upper bounds on wind speed: ", onshoreclasses_max_area)
