@@ -159,6 +159,8 @@ function GISwind(; savetodisk=true, plotmasks=false, optionlist...)
       calc_wind_vars(options, windatlas, windatlas_class, meanwind, windspeed, meanwind_allyears, regions,
               offshoreregions, regionlist, mask_onshoreA, mask_onshoreB, mask_offshore, lonrange, latrange)
 
+    println("Total potential [GW]: ",sum(capacity_onshoreA)+sum(capacity_onshoreB))
+
     if savetodisk
         mkpath(in_datafolder("output"))
         suffix = isempty(climate_scenario) ? filenamesuffix : "_$climate_scenario$filenamesuffix"
@@ -279,10 +281,11 @@ function windclasses_areabased(windatlas,regions,regionlist,res,latrange,number_
         end
     end
     onshoreclasses_min_area[1] = min_windspeed
-    onshoreclasses_max_area[end] = wind_and_area_sorted[end][1]
+    onshoreclasses_max_area[end] = 99
     #println("\nArea of each class: ", area_classes)
     #println("Lower bounds on wind speed: ", onshoreclasses_min_area)
     #println("Upper bounds on wind speed: ", onshoreclasses_max_area)
+    println("Total area: ",total_area)
 
     return onshoreclasses_min_area, onshoreclasses_max_area
 end
@@ -554,6 +557,9 @@ function calc_wind_vars(options, windatlas, windatlas_class, meanwind, windspeed
     # To improve the estimated time of completing the progress bar, iterate over latitudes in random order.
     Random.seed!(1)
     updateprogress = Progress(nlats, 1)
+
+    # Added to get the total area
+    totarea = 0
     for j in randperm(nlats)
         eralat = getlat(meanwindGeo, j)
         colrange = lat_indices_within(regionsGeo, eralat - erares/2, eralat + erares/2)
@@ -577,8 +583,10 @@ function calc_wind_vars(options, windatlas, windatlas_class, meanwind, windspeed
                 # Wind Atlas.
                 if reg > 0 && reg != NOREGION
                     class = GWAclasses ? onshoreclass[r,c] : onshoreclass[i,j]
+                    totarea += area
                     @views if reg > 0 && class > 0 && mask_onshoreA[r,c] > 0
                         capacity_onshoreA[reg,class] += 1/1000 * onshore_density * area_onshore * area
+                        println("Dens ",onshore_density," Area share ",area_onshore," Area ",area)
                         increment_windCF!(windCF_onshoreA[:,reg,class], wind, windatlas[r,c] / meanwind_allyears[i,j], rescale_to_wind_atlas)
                         count_onshoreA[reg,class] += 1
                     elseif reg > 0 && class > 0 && mask_onshoreB[r,c] > 0
@@ -597,6 +605,7 @@ function calc_wind_vars(options, windatlas, windatlas_class, meanwind, windspeed
                 end
             end
         end
+        #println("Total area given by GlobalEnergyGIS: ",totarea)
         next!(updateprogress)
     end
 
