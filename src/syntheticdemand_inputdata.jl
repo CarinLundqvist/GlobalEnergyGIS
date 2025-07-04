@@ -16,6 +16,9 @@ function make_sspregionlookup(ssp)
             sspregions[index] = sspregionname
         end
     end
+    # Assigning Kosovo to the same ssp-region as the other Balcan countries
+    index = findfirst(isequal(Symbol("Kosovo")), regionlist)
+    sspregions[index] = "OECD"
     return sspregions # Vector{String}(length numcountries, indexed by gadm country code)
 end
 
@@ -49,6 +52,8 @@ end
 function ieademand()
     println("Get current national electricity demand from IEA statistics...")
     iea = CSV.read(in_datafolder("ieademand_2016.csv"), DataFrame)      # GWh/year
+    # Obs! Trying a bigger demand dataset from OurWorldinData
+    owid = CSV.read(in_datafolder("electricity-demand_OurWorldInData2016_processed.csv"), DataFrame)      # GWh/year
     _, _, regionlist, _, _ = loadregions("Global_GADM0")
     nationaldemand = zeros(length(regionlist))
     for row in eachrow(iea)
@@ -57,6 +62,15 @@ function ieademand()
         f = findfirst(regionlist .== Symbol(country))
         f == nothing && error("IEA country $country missing in GADM regions.")
         nationaldemand[f] = demand/1000
+    end
+    for row in eachrow(owid)
+        country, demand = row
+        country == uppercase(country) && continue   # skip IEA aggregated regions in uppercase, e.g. "ASIA"
+        f = findfirst(regionlist .== Symbol(country))
+        f == nothing && error("IEA country $country missing in GADM regions.")
+        if nationaldemand[f] == 0
+            nationaldemand[f] = demand /1000
+        end
     end
     return nationaldemand        # TWh/year 
 end

@@ -1,5 +1,5 @@
 export europe8, eurasia38, scand3, scand4, eurasia21, china6, europe13, europe21, europe22, europe54, syntheticdemandregions,
-        testreg, caspian, NUTS_Europe, eurasia92
+        testreg, caspian, NUTS_Europe, eurasia92, usa_transmission, china_transmission, australia_transmission, europe_transmission
 
 const scand3 = [
     "SWE"   GADM("Sweden")
@@ -454,4 +454,62 @@ const eurasia92 = [
     "JKR_JP"    GADM("Japan")
     "JKR_NK"    GADM("North Korea")
     "JKR_SK"    GADM("South Korea")
+]
+
+#Australia
+#Ignoring the Islands
+const australia_transmission = [
+    "AUS_NE"    GADM(["Australia"], "Queensland")
+    "AUS_E"     GADM(["Australia"], "New South Wales","Jervis Bay Territory","Australian Capital Territory")
+    "AUS_SE"    GADM(["Australia"], "Victoria","Tasmania")
+    "AUS_S"     GADM(["Australia"], "South Australia")
+    "AUS_W"     GADM(["Australia"], "Western Australia")
+    "AUS_N"     GADM(["Australia"], "Northern Territory")
+]
+
+# Do I include Alaska and Hawaii? Alska should be included in West if so
+const usa_transmission = [
+    "West"          GADM(["United States"], "California", "Oregon", "Washington")
+    "Central West"  GADM(["United States"], "Arizona", "Colorado", "Idaho", "Montana", "Nevada", "New Mexico", "Utah", "Wyoming")
+    "South"         GADM(["United States"], "Kansas","Oklahoma", "Texas")
+    "Middle"        GADM(["United States"], "Iowa", "Minnesota", "Nebraska", "North Dakota", "South Dakota", "Wisconsin")
+    "Southeast"     GADM(["United States"], "Alabama", "Arkansas", "Florida", "Georgia", "Kentucky", "Louisiana", "Mississippi", "North Carolina", "South Carolina", "Tennessee")
+    "East"          GADM(["United States"], "Delaware", "District of Columbia", "Illinois", "Indiana", "Maryland", "Michigan", "Missouri", "New Jersey", "Ohio", "Pennsylvania","Virginia","West Virginia")
+    "Northest"      GADM(["United States"], "Connecticut", "Maine", "Massachusetts", "New Hampshire", "New York", "Rhode Island", "Vermont")  
+]
+
+const europe_transmission = [
+    # BNL = Benelux, BTC = Baltic, BKN = Balkan, CEN = Central
+    "SWE"   GADM("Sweden")
+    "NOR"   GADM("Norway")
+    "DEN"   GADM("Denmark", "Faroe Islands")
+    "FIN"   GADM("Finland","Åland")
+    "NL"    GADM("Netherlands")
+    "BL"    GADM("Belgium")
+    "LX"    GADM("Luxembourg")
+    "GER"   GADM("Germany")
+    "FRA"   GADM("France")
+    "UK"    GADM("United Kingdom")    # Think about Northern Ireland
+    "IR"    GADM("Ireland")
+    "ITA"   GADM("Italy")
+    "POL"   GADM("Poland")
+    "EST"   GADM("Estonia")
+    "LAT"   GADM("Latvia")
+    "LIT"   GADM("Lithuania")
+    "SPA"   GADM("Spain")
+    "POR"   GADM("Portugal")
+    "AUS"   GADM("Austria")
+    "SWI"   GADM("Switzerland")
+    "CZR"   GADM("Czech Republic")
+    "SLO"   GADM("Slovakia")
+    "HUN"   GADM("Hungary")
+]
+
+const china_transmission = [
+    "CH_N"   GADM(["China"], "Beijing","Tianjin","Hebei","Shanxi","Nei Mongol")
+    "CH_NE"  GADM(["China"], "Liaoning","Jilin","Heilongjiang")
+    "CH_E"   GADM(["China"], "Shanghai","Jiangsu","Zhejiang","Anhui","Fujian","Jiangxi","Shandong")
+    "CH_SC"  (GADM(["China"], "Henan","Hubei","Hunan","Guangdong","Guangxi","Hainan"), GADM("Hong Kong","Macao"))
+    "CH_SW"  GADM(["China"], "Chongqing","Sichuan","Guizhou","Yunnan","Xizang")
+    "CH_NW"  GADM(["China"], "Shaanxi","Gansu","Qinghai","Ningxia Hui","Xinjiang Uygur")
 ]

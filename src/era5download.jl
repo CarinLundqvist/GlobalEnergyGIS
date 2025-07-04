@@ -7,12 +7,12 @@ getconfig(key) = getconfig()[key]
 function getconfig()
     configfile = joinpath(homedir(), ".GlobalEnergyGIS_config")
     if !isfile(configfile)
-        error("Configuration file missing, please run saveconfig(datafolder, uid, api_key) first. See GlobalEnergyGIS README.")
+        error("Configuration file missing, please run saveconfig(datafolder, api_key) first. See GlobalEnergyGIS README.")
     end
     return TOML.parsefile(configfile)
 end
 
-function saveconfig(datafolder::AbstractString, uid::Int, api_key::AbstractString; agree_terms=false)
+function saveconfig(datafolder::AbstractString, api_key::AbstractString; agree_terms=false)
     !agree_terms && error("You must agree to the terms of use of all datasets to proceed. See GlobalEnergyGIS README.")
     downloadsfolder = joinpath(datafolder, "downloads")
     mkpath(downloadsfolder)
@@ -22,15 +22,15 @@ function saveconfig(datafolder::AbstractString, uid::Int, api_key::AbstractStrin
         TOML.print(io, d)
         println("Configuration file written to $configfile.")
     end
-    cds_id(uid, api_key)
+    cds_id(api_key)
 end
 
-function cds_id(uid::Int, api_key::AbstractString)
+function cds_id(api_key::AbstractString)
     filename = joinpath(homedir(), ".cdsapirc")
     isfile(filename) && error("$filename already exists, no changes made. Please check its contents manually.")
     open(filename, "w") do file
         write(file, "url: https://cds.climate.copernicus.eu/api/v2\n")
-        write(file, "key: $uid:$api_key\n")
+        write(file, "key: $api_key\n")
         println("Copernicus credentials written to $filename.")
     end
 end
