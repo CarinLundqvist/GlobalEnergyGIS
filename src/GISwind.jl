@@ -38,7 +38,7 @@ windoptions() = Dict(
 
     :climate_scenario => "",     # e.g. "HCLIM_EC-EARTH_100m_rcp85_2050", "CORDEX_ictp_EC-EARTH_100m_rcp85_2050"
 
-    :max_altitude => 1e5,                  # (m) the maximum altitude that onshore wind turbines can be placed on
+    :max_altitude => 1e5,                  # (m) the maximum altitude for onshore wind turbines
     :area_based_onshoreclasses => true,     # if area-based wind resource classes should be used. Ignores the wind speed bounds above
     :number_of_classes => 10,               # the number of area-based classes
     :min_windspeed => 6                     # (m/s) the minimum wind speed included in the area-based classes, i.e. a lower bound on wind speed
@@ -390,8 +390,9 @@ function create_wind_masks(options, regions, offshoreregions, gridaccess, popden
         masks[(masks .== 0) .& .!gridA .& gridB] .= 8
         masks[(masks .== 0) .& isregion] .= 7
         masks[regions .== 0] .= 0
+        masks[(masks .== 0) .& (topo .> max_altitude)] .= 5
         masks[regions .== NOREGION] .= NOREGION
-        legendtext = ["bad land type", "high population", "protected area", "no grid", "", "", "wind plant A", "wind plant B"]
+        legendtext = ["bad land type", "high population", "protected area", "no grid", "high altitude", "", "wind plant A", "wind plant B"]
         maskmap("$(gisregion)_masks_wind$filenamesuffix", masks, legendtext, lonrange, latrange; legend=true, downsample=downsample, resolutionscale=10)
 
         isregion = (offshoreregions .> 0) .& (offshoreregions .!= NOREGION)
@@ -421,7 +422,7 @@ const windparkcurve = [
 # 0 - 29 m/S
 # Synthetic power curve based on Ryberg et al 2019, https://doi.org/10.1016/j.energy.2019.06.052
 # Based on a Vestas V136, 4.2MW
-# 5 % losses has been added to account for wake effects and transmission losses
+# 5 % losses are assumed to account for wake effects and transmission losses
 const NEWwindparkcurve = 0.95 .* [
     0.0, 0.0, 0.0, 0.0007, 0.0116, 0.0512, 0.1367, 0.2751, 0.4573, 0.6546, 
     0.8236, 0.9307, 0.9775, 0.9908, 0.9930, 0.9932, 0.9933, 0.9933, 0.9933, 0.9933,

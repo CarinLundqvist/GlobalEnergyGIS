@@ -44,21 +44,25 @@ function makesolarera5(; year=2018, land_cells_only=true)
             count += 1
             println("\nFile $count of 24:")
             println("Reading solar diffuse and direct components from $erafile...")
-            ncdataset = Dataset(erafile)
-            # GHI = replace(ncdataset["ssrd"][:,:,:], missing => 0.0) .* (land .> 0) ./ (3600*1000)
-            # DHI = GHI - replace(ncdataset["fdir"][:,:,:], missing => 0.0) .* (land .> 0) ./ (3600*1000)
-            ssrd = nomissing(ncdataset["ssrd"][:,:,:], 0.0)
-            fdir = nomissing(ncdataset["fdir"][:,:,:], 0.0)
-            datetime = nomissing(ncdataset["time"][:], DateTime(0))
-            GTI, DNI = @time transform_solar_vars(ssrd, fdir, datetime, land, land_cells_only)
 
-            totalGTI += sumdrop(GTI, dims=1)
-            totalDNI += sumdrop(DNI, dims=1)
-            len = size(GTI,1)
-            println("Writing to $filename...")
-            dataset_GTI[hour:hour+len-1,:,:] = GTI
-            dataset_DNI[hour:hour+len-1,:,:] = DNI
-            hour += len
+            Dataset(erafile) do ncdataset
+                #ncdataset = Dataset(erafile)
+                # GHI = replace(ncdataset["ssrd"][:,:,:], missing => 0.0) .* (land .> 0) ./ (3600*1000)
+                # DHI = GHI - replace(ncdataset["fdir"][:,:,:], missing => 0.0) .* (land .> 0) ./ (3600*1000)
+                ssrd = nomissing(ncdataset["ssrd"][:,:,:], 0.0)
+                fdir = nomissing(ncdataset["fdir"][:,:,:], 0.0)
+                datetime = nomissing(ncdataset["valid_time"][:], DateTime(0))
+            
+                GTI, DNI = @time transform_solar_vars(ssrd, fdir, datetime, land, land_cells_only)
+
+                totalGTI += sumdrop(GTI, dims=1)
+                totalDNI += sumdrop(DNI, dims=1)
+                len = size(GTI,1)
+                println("Writing to $filename...")
+                dataset_GTI[hour:hour+len-1,:,:] = GTI
+                dataset_DNI[hour:hour+len-1,:,:] = DNI
+                hour += len
+            end
         end
         println("\nWriting annual mean solar variables to $filename...")
         dataset_meanGTI[:,:] = totalGTI/hours
