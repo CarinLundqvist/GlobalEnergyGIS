@@ -52,7 +52,7 @@ end
 function ieademand()
     println("Get current national electricity demand from IEA statistics...")
     iea = CSV.read(in_datafolder("ieademand_2016.csv"), DataFrame)      # GWh/year
-    # Obs! Trying a bigger demand dataset from OurWorldinData
+    # If IEA is missing demand: trying a bigger demand dataset from OurWorldinData
     owid = CSV.read(in_datafolder("electricity-demand_OurWorldInData2016_processed.csv"), DataFrame)      # GWh/year
     _, _, regionlist, _, _ = loadregions("Global_GADM0")
     nationaldemand = zeros(length(regionlist))
