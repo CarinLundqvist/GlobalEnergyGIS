@@ -280,6 +280,28 @@ function windclasses_areabased(windatlas,regions,regionlist,res,latrange,number_
     return onshoreclasses_min_area, onshoreclasses_max_area
 end
 
+function get_area_based_classes(; savetodisk=true, plotmasks=false, optionlist...)
+    options = WindOptions(merge(windoptions(), optionlist))
+    @unpack gisregion, era_year, filenamesuffix, res, downsample_masks, area_based_onshoreclasses, number_of_classes, min_windspeed, climate_scenario = options
+
+    regions, offshoreregions, regionlist, gridaccess, popdens, topo, land, protected, lonrange, latrange =
+                read_datasets(options)
+
+    #mask_onshoreA, mask_onshoreB, mask_offshore =
+    #    create_wind_masks(options, regions, offshoreregions, gridaccess, popdens, topo, land, protected, lonrange, latrange,
+    #                        plotmasks=plotmasks, downsample=downsample_masks)
+
+    plotmasks == :onlymasks && return nothing
+
+    windatlas, windatlas_class, meanwind, windspeed, meanwind_allyears = read_wind_datasets(options, lonrange, latrange)
+
+    # If area_based_onshoreclasses, new resource classes will be created according to the methodology
+    #   in Bogdanov and Breyer 2016, as well as Jakobsson et al (unpublished)
+    onshoreclasses_min_area, onshoreclasses_max_area = 
+            windclasses_areabased(windatlas,regions,regionlist,res,latrange,number_of_classes,min_windspeed)
+
+    return onshoreclasses_min_area, onshoreclasses_max_area
+end
 
 function read_datasets(options)
     @unpack res, gisregion, scenarioyear = options

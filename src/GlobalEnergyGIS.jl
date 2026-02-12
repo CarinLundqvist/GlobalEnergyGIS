@@ -1,6 +1,6 @@
 module GlobalEnergyGIS
 
-export GISwind, GISsolar, GIShydro, GIStemp, GISturbines, makedistances, annualwindindex
+export GISwind, GISsolar, GIShydro, GIStemp, GISturbines, makedistances, annualwindindex, get_area_based_classes
 
 using MAT, HDF5, ProgressMeter, Random, Interpolations, BenchmarkTools, Images,
     Statistics, DelimitedFiles, Dates, NCDatasets, JLD, Parameters, ImageSegmentation,

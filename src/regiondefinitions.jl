@@ -513,3 +513,11 @@ const china_transmission = [
     "CH_SW"  GADM(["China"], "Chongqing","Sichuan","Guizhou","Yunnan","Xizang")
     "CH_NW"  GADM(["China"], "Shaanxi","Gansu","Qinghai","Ningxia Hui","Xinjiang Uygur")
 ]
+
+# Equivalent to Sweden's bidding zones
+const sweden_transmission = [
+    :SE1    NUTS("SE33")
+    :SE2    NUTS("SE32","SE313")
+    :SE3    NUTS("SE211","SE232","SE12","SE11","SE312","SE311","SE214")
+    :SE4    NUTS("SE22","SE231","SE212","SE213")
+]
