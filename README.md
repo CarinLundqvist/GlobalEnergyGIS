@@ -3,7 +3,10 @@ The original instructions for the GlobalEnergyGIS-model can be seen in the secti
 
 The model was run with Julia v1.7.0.
 
-Only GISWind was modified to allow the exclusion of land based on altitude and to allow new land-based resource classes. How the resource classes are created is explained in the master thesis "How the Cost-Competitiveness of Wind Power is Affected by Considering Historical Installation Patterns" by Lundqvist 2024. 
+* GISWind was modified to allow new land-based resource classes
+* Demand data was updated
+
+The creation of the resource classes is explained in the master thesis "How the Cost-Competitiveness of Wind Power is Affected by Considering Historical Installation Patterns" by Lundqvist (2024), url: http://hdl.handle.net/20.500.12380/307930. 
 
 # GlobalEnergyGIS.jl
 
